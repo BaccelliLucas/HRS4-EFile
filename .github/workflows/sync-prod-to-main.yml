@@ -1,0 +1,38 @@
+﻿name: Sync PROD to Main
+
+on:
+  push:
+    branches:
+      - PROD
+
+permissions:
+  contents: write
+
+jobs:
+  sync-prod-to-main:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PROD
+        uses: actions/checkout@v4
+        with:
+          ref: PROD
+          fetch-depth: 0
+
+      - name: Configure git
+        run: |
+          git config user.name \"github-actions[bot]\"
+          git config user.email \"41898282+github-actions[bot]@users.noreply.github.com\"
+
+      - name: Sync PROD into Main
+        run: |
+          git fetch origin Main || true
+          if git show-ref --verify --quiet refs/remotes/origin/Main; then
+            git checkout -B Main origin/Main
+          else
+            git checkout -B Main
+          fi
+          git merge --ff-only origin/PROD || {
+            echo \"Fast-forward not possible; using regular merge\";
+            git merge --no-edit origin/PROD;
+          }
+          git push origin Main

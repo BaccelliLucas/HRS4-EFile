@@ -1,0 +1,7 @@
+customtkinter
+openpyxl
+Pillow
+pypdf
+python-dotenv
+requests
+urllib3
