@@ -1,5 +1,4 @@
 import requests
-from openpyxl import load_workbook
 from time import sleep
 import os
 import shutil

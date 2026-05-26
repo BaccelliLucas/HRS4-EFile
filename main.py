@@ -6,7 +6,6 @@ import threading
 import os
 from dotenv import load_dotenv
 from functions import Functions
-from openpyxl import load_workbook
 from time import sleep
 import logging
 import getpass
@@ -142,6 +141,8 @@ class App:
         self.loading = True
 
         try:
+            # Delay openpyxl import to avoid blocking app startup on slow environments.
+            from openpyxl import load_workbook
             self.workbook = load_workbook(self.collaborators_file_path)
             self.worksheet = self.workbook.active
             self.collaborator_list = self.functions.get_collaborators_list(self.worksheet)
@@ -204,10 +205,14 @@ class App:
             os.makedirs(temp_docs_path, exist_ok=True)
             os.makedirs(temp_benefits_path, exist_ok=True)
 
+            print(BASE_API)
             benefits_url = f"{BASE_API}/zip-benefits/{new_cpf}"
             documents_url = f"{BASE_API}/zip-documents/{new_cpf}"
             contract_url = f"{BASE_API}/work-contract/{new_cpf}"
-
+            
+            print(benefits_url)
+            print(documents_url)
+            print(contract_url)
             collaborator_error = False
 
             try:
