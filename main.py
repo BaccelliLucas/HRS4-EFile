@@ -15,15 +15,29 @@ import traceback
 
 
 def _write_crash_log(exc: BaseException) -> None:
-    """Grava traceback em arquivo na área de trabalho ao falhar silenciosamente."""
+    """Grava traceback completo na área de trabalho — funciona no .exe sem console."""
     try:
         desktop = os.path.join(os.path.expanduser("~"), "Desktop")
         crash_path = os.path.join(desktop, "efile_crash_log.txt")
+        tb_text = traceback.format_exc()  # captura o traceback atual do contexto de exceção
+        if tb_text.strip() == "NoneType: None":
+            # fallback quando chamado fora de um bloco except
+            tb_text = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
         with open(crash_path, "w", encoding="utf-8") as f:
-            f.write(f"EFileDownloader — crash em {datetime.now()}\n\n")
-            traceback.print_exc(file=f)
+            f.write(f"EFileDownloader — crash em {datetime.now()}\n")
+            f.write(f"Python {sys.version}\n")
+            f.write(f"Frozen: {getattr(sys, 'frozen', False)}\n\n")
+            f.write(tb_text)
     except Exception:
         pass
+
+
+def _thread_excepthook(args) -> None:
+    """Captura exceções não tratadas em threads secundárias."""
+    _write_crash_log(args.exc_value)
+
+
+threading.excepthook = _thread_excepthook
 
 if getattr(sys, 'frozen', False):
     base_path = sys._MEIPASS

@@ -19,7 +19,6 @@ if errorlevel 1 (
 echo [2/4] Limpando builds anteriores...
 if exist build rmdir /s /q build
 if exist dist rmdir /s /q dist
-if exist EFileDownloader.spec del /f /q EFileDownloader.spec
 
 if not exist ".env" (
   echo Arquivo .env nao encontrado na raiz do projeto.
