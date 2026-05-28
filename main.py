@@ -10,34 +10,36 @@ from time import sleep
 import logging
 import getpass
 import shutil
-from datetime import datetime
-import traceback
 
 
-def _write_crash_log(exc: BaseException) -> None:
-    """Grava traceback completo na área de trabalho — funciona no .exe sem console."""
-    try:
-        desktop = os.path.join(os.path.expanduser("~"), "Desktop")
-        crash_path = os.path.join(desktop, "efile_crash_log.txt")
-        tb_text = traceback.format_exc()  # captura o traceback atual do contexto de exceção
-        if tb_text.strip() == "NoneType: None":
-            # fallback quando chamado fora de um bloco except
-            tb_text = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
-        with open(crash_path, "w", encoding="utf-8") as f:
-            f.write(f"EFileDownloader — crash em {datetime.now()}\n")
-            f.write(f"Python {sys.version}\n")
-            f.write(f"Frozen: {getattr(sys, 'frozen', False)}\n\n")
-            f.write(tb_text)
-    except Exception:
-        pass
+def setup_logging() -> None:
+    """Configura logging para arquivo app.log ao lado do executável (ou script)."""
+    if getattr(sys, 'frozen', False):
+        root_dir = os.path.dirname(sys.executable)
+    else:
+        root_dir = os.path.dirname(os.path.abspath(__file__))
 
+    log_path = os.path.join(root_dir, 'app.log')
+    fmt = logging.Formatter('%(asctime)s [%(levelname)s] %(message)s')
 
-def _thread_excepthook(args) -> None:
-    """Captura exceções não tratadas em threads secundárias."""
-    _write_crash_log(args.exc_value)
+    file_handler = logging.FileHandler(log_path, encoding='utf-8')
+    file_handler.setFormatter(fmt)
 
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.INFO)
+    root_logger.addHandler(file_handler)
 
-threading.excepthook = _thread_excepthook
+    def _excepthook(exc_type, exc_value, exc_tb):
+        root_logger.critical('Exceção não capturada', exc_info=(exc_type, exc_value, exc_tb))
+
+    def _thread_excepthook(args):
+        root_logger.critical('Exceção não capturada em thread', exc_info=(
+            args.exc_type, args.exc_value, args.exc_tb
+        ))
+
+    sys.excepthook = _excepthook
+    threading.excepthook = _thread_excepthook
+
 
 if getattr(sys, 'frozen', False):
     base_path = sys._MEIPASS
@@ -47,18 +49,10 @@ else:
 dotenv_path = os.path.join(base_path, '.env')
 load_dotenv(dotenv_path)
 
-user_pc = getpass.getuser()
+setup_logging()
 
-# Configuração de Logs — console apenas na inicialização.
-# O FileHandler é adicionado em App._setup_file_logging() ao iniciar o processo.
-_log_formatter = logging.Formatter(
-    fmt='%(asctime)s - %(levelname)s - %(message)s',
-    datefmt='%H:%M:%S'
-)
-_console_handler = logging.StreamHandler(sys.stdout)
-_console_handler.setFormatter(_log_formatter)
-logging.getLogger().setLevel(logging.INFO)
-logging.getLogger().addHandler(_console_handler)
+user_pc = getpass.getuser()
+logger = logging.getLogger('app')
 
 class App:
     def __init__(self, root):
@@ -119,19 +113,6 @@ class App:
         self.collaborators_error_list = []
 
         root.protocol("WM_DELETE_WINDOW", self.root.destroy)
-        self._file_log_handler = None
-
-    def _setup_file_logging(self):
-        """Cria um arquivo de log com timestamp para a execução atual."""
-        log_dir = os.path.join(self.DOWNLOAD_PATH, "logs")
-        os.makedirs(log_dir, exist_ok=True)
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        log_path = os.path.join(log_dir, f"efile_{timestamp}.log")
-        handler = logging.FileHandler(log_path, encoding="utf-8")
-        handler.setFormatter(_log_formatter)
-        logging.getLogger().addHandler(handler)
-        self._file_log_handler = handler
-        logging.info(f"Log desta execução salvo em: {log_path}")
 
     def verify_all_loaded_files(self):
         if all([self.collaborators_file_path, self.documents_file_path, self.benefits_file_path, self.contract_file_path]):
@@ -174,7 +155,6 @@ class App:
 
         self.loading_label.pack(pady=20)
         self.loading = True
-        self._setup_file_logging()
 
         try:
             # Delay openpyxl import to avoid blocking app startup on slow environments.
@@ -183,7 +163,7 @@ class App:
             self.worksheet = self.workbook.active
             self.collaborator_list = self.functions.get_collaborators_list(self.worksheet)
         except Exception as e:
-            logging.error(f"Erro ao ler Excel: {e}")
+            logger.exception("Erro ao ler Excel")
             self.error_label.configure(text=f"Erro no Excel: {e}")
             self.error_label.pack()
             return
@@ -206,9 +186,7 @@ class App:
             self.root.after(500, self.animate)
 
     def download_collaborators_files(self):
-        logging.info("=========================================")
-        logging.info("   INICIANDO DOWNLOADS E MESCLAGEM ")
-        logging.info("=========================================")
+        logger.info("Iniciando downloads. total=%d", len(self.collaborator_list))
 
         BASE_API = os.getenv("API_URL")
         headers = {
@@ -224,14 +202,14 @@ class App:
             
             new_cpf = str(cpf).replace(".", "").replace("-", "")
             
-            logging.info(f"\n[{index+1}/{total}] Processando EDV: {edv}")
+            logger.info("[%d/%d] Processando EDV=%s", index + 1, total, edv)
 
             if len(new_cpf) != 11 or not new_cpf.isdigit():
-                logging.warning(f"   [!] CPF Inválido ignorado: {cpf}")
+                logger.warning("CPF inválido ignorado: %s", cpf)
                 continue
 
             if self.functions.verify_ok_cell(self.worksheet, index+2):
-                logging.info(f"   [i] Já processado. Pulando.")
+                logger.info("EDV=%s já processado. Pulando.", edv)
                 continue
 
             edv_folder = os.path.join(self.DOWNLOAD_PATH, str(edv))
@@ -244,27 +222,21 @@ class App:
             benefits_url = f"{BASE_API}/zip-benefits/{new_cpf}"
             documents_url = f"{BASE_API}/zip-documents/{new_cpf}"
             contract_url = f"{BASE_API}/work-contract/{new_cpf}"
-            logging.debug(f"   URLs -> docs={documents_url} | contract={contract_url} | benefits={benefits_url}")
+            logger.info("Baixando arquivos: EDV=%s", edv)
             collaborator_error = False
 
             try:
-                logging.info(f"   > Baixando Documentos...")
                 self.functions.get_zip(url=documents_url, headers=headers, download_path=temp_docs_path, name="documents")
-                
-                logging.info(f"   > Baixando Contrato...")
                 self.functions.get_pdf(url=contract_url, headers=headers, download_path=temp_docs_path, name="contract")
-
-                logging.info(f"   > Baixando Benefícios...")
                 self.functions.get_zip(url=benefits_url, headers=headers, download_path=temp_benefits_path, name="benefits")
 
-            except Exception as e:
-                logging.error(f"   [X] ERRO no download: {e}")
+            except Exception:
+                logger.exception("Erro no download: EDV=%s", edv)
                 self.collaborators_error_list.append(edv)
                 collaborator_error = True
                 continue
 
             if not collaborator_error:
-                logging.info("   > Organizando arquivos nas pastas de destino final...")
                 try:
                     # Cria as subpastas com o EDV dentro das pastas destino escolhidas no app
                     final_docs_dest = os.path.join(self.documents_file_path, str(edv))
@@ -279,35 +251,26 @@ class App:
                     # Move para a subpasta do EDV no destino final mantendo o nome original
                     self.functions.move_files_to_BOT(temp_docs_path, final_docs_dest)
 
-                    # === CHAMA A FUNÇÃO DE MESCLAGEM AQUI ===
-                    logging.info("   > Mesclando documentos em um único PDF...")
                     self.functions.merge_files_to_pdf(final_docs_dest, output_filename="Contrato_Completo.pdf")
-
-                    # -- Processa PASTA BENEFÍCIOS --
                     self.functions.get_file_in_zip(temp_benefits_path)
                     sleep(1)
-                    # Move para a subpasta do EDV no destino final mantendo o nome original
                     self.functions.move_files_to_BOT(temp_benefits_path, final_benefits_dest)
+                    logger.info("Arquivos processados com sucesso: EDV=%s", edv)
 
-                    logging.info("     [OK] Arquivos movidos e mesclados com sucesso.")
-
-                except Exception as e:
-                    logging.error(f"   [X] ERRO ao processar ou mesclar arquivos locais: {e}")
+                except Exception:
+                    logger.exception("Erro ao processar arquivos locais: EDV=%s", edv)
                     self.collaborators_error_list.append(edv)
                     collaborator_error = True
 
             if not collaborator_error:
-                logging.info("   [SUCESSO] Finalizado.")
+                logger.info("Finalizado com sucesso: EDV=%s", edv)
                 self.functions.insert_ok_spreadsheet(self.worksheet, self.workbook, self.collaborators_file_path, index+2)
             else:
-                logging.warning("   [FALHA] Marcando erro.")
+                logger.warning("Falha no processamento: EDV=%s", edv)
 
         self.loading = False
         errors_qty = len(self.collaborators_error_list)
-        
-        logging.info("=========================================")
-        logging.info(f"   FIM. Erros: {errors_qty}")
-        logging.info("=========================================")
+        logger.info("Downloads concluídos. erros=%d", errors_qty)
 
         if errors_qty > 0:
             msg = f"Finalizado com {errors_qty} erros!\nVerifique o log."
@@ -320,10 +283,7 @@ class App:
         self.loading_label.configure(text="Concluído")
 
 if __name__ == "__main__":
-    try:
-        root = ctk.CTk()
-        app = App(root)
-        root.mainloop()
-    except Exception as e:
-        _write_crash_log(e)
-        raise
+    logger.info("Iniciando aplicação. frozen=%s", getattr(sys, 'frozen', False))
+    root = ctk.CTk()
+    app = App(root)
+    root.mainloop()
