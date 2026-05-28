@@ -28,7 +28,7 @@ if not exist ".env" (
 )
 
 echo [3/4] Gerando executavel...
-"%PYTHON_EXE%" -m PyInstaller --noconfirm --clean --onefile --windowed --name EFileDownloader --collect-all customtkinter --add-data ".env;." main.py
+"%PYTHON_EXE%" -m PyInstaller --noconfirm --clean EFileDownloader.spec
 if errorlevel 1 (
   echo Falha ao gerar executavel.
   exit /b 1

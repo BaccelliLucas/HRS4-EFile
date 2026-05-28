@@ -4,8 +4,21 @@ from PyInstaller.utils.hooks import collect_all
 datas = [('.env', '.')]
 binaries = []
 hiddenimports = []
-tmp_ret = collect_all('customtkinter')
-datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+
+for pkg in ('customtkinter', 'pypac', 'PIL'):
+    tmp_ret = collect_all(pkg)
+    datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+
+hiddenimports += [
+    'pypac.api',
+    'pypac.parser',
+    'pypac.resolver',
+    'pypac.windows',
+    'winreg',
+    'PIL._imagingtk',
+    'PIL.Image',
+    'PIL.ImageTk',
+]
 
 
 a = Analysis(

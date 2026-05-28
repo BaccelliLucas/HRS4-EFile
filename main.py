@@ -11,6 +11,19 @@ import logging
 import getpass
 import shutil
 from datetime import datetime
+import traceback
+
+
+def _write_crash_log(exc: BaseException) -> None:
+    """Grava traceback em arquivo na área de trabalho ao falhar silenciosamente."""
+    try:
+        desktop = os.path.join(os.path.expanduser("~"), "Desktop")
+        crash_path = os.path.join(desktop, "efile_crash_log.txt")
+        with open(crash_path, "w", encoding="utf-8") as f:
+            f.write(f"EFileDownloader — crash em {datetime.now()}\n\n")
+            traceback.print_exc(file=f)
+    except Exception:
+        pass
 
 if getattr(sys, 'frozen', False):
     base_path = sys._MEIPASS
@@ -293,6 +306,10 @@ class App:
         self.loading_label.configure(text="Concluído")
 
 if __name__ == "__main__":
-    root = ctk.CTk()
-    app = App(root)
-    root.mainloop()
+    try:
+        root = ctk.CTk()
+        app = App(root)
+        root.mainloop()
+    except Exception as e:
+        _write_crash_log(e)
+        raise
