@@ -10,8 +10,34 @@ import time
 from PIL import Image
 from pypdf import PdfWriter
 import pypac
+import logging
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+logger = logging.getLogger('app')
+
+
+def _build_session() -> requests.Session:
+    """
+    Cria a sessão HTTP com suporte a proxy corporativo.
+
+    Prioridade:
+      1. PROXY_URL no .env  → proxy fixo (override manual)
+      2. Sem PROXY_URL      → PACSession (descoberta automática via Windows Registry)
+    """
+    proxy_url = os.getenv("PROXY_URL", "").strip()
+
+    if proxy_url:
+        logger.info("Proxy configurado via PROXY_URL: %s", proxy_url)
+        session = requests.Session()
+        session.proxies = {"http": proxy_url, "https": proxy_url}
+    else:
+        logger.info("PROXY_URL não definido. Usando PACSession (Windows Registry).")
+        session = pypac.PACSession(from_dns=False)
+
+    session.verify = False
+    return session
+
 
 class Functions:
 
@@ -22,8 +48,7 @@ class Functions:
         self.documents_file_path = None
         self.benefits_file_path = None
 
-        self.session = pypac.PACSession(from_dns=False)
-        self.session.verify = False
+        self.session = _build_session()
 
     def get_zip(self, url, headers, download_path, name:str):
         response = self.session.get(url, headers=headers)
