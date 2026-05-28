@@ -5,7 +5,7 @@ datas = [('.env', '.')]
 binaries = []
 hiddenimports = []
 
-for pkg in ('customtkinter', 'pypac', 'PIL'):
+for pkg in ('customtkinter', 'pypac', 'PIL', 'tldextract'):
     tmp_ret = collect_all(pkg)
     datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 

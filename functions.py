@@ -22,7 +22,7 @@ class Functions:
         self.documents_file_path = None
         self.benefits_file_path = None
 
-        self.session = pypac.PACSession()
+        self.session = pypac.PACSession(from_dns=False)
         self.session.verify = False
 
     def get_zip(self, url, headers, download_path, name:str):
