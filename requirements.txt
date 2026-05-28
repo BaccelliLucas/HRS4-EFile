@@ -3,5 +3,6 @@ openpyxl
 Pillow
 pypdf
 python-dotenv
+pypac
 requests
 urllib3

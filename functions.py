@@ -1,4 +1,5 @@
 import requests
+import urllib3
 from time import sleep
 import os
 import shutil
@@ -8,6 +9,9 @@ from tkinter import filedialog
 import time
 from PIL import Image
 from pypdf import PdfWriter
+import pypac
+
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 class Functions:
 
@@ -18,8 +22,11 @@ class Functions:
         self.documents_file_path = None
         self.benefits_file_path = None
 
+        self.session = pypac.PACSession()
+        self.session.verify = False
+
     def get_zip(self, url, headers, download_path, name:str):
-        response = requests.get(url, headers=headers)
+        response = self.session.get(url, headers=headers)
         if response.status_code == 200:
             os.makedirs(download_path, exist_ok=True)
             with open(os.path.join(download_path, f'{name}.zip'), "wb") as f:
@@ -29,7 +36,7 @@ class Functions:
             return None
         
     def get_pdf(self, url, headers, download_path, name:str):
-        response = requests.get(url, headers=headers)
+        response = self.session.get(url, headers=headers)
         if response.status_code == 200:
             os.makedirs(download_path, exist_ok=True)
             with open(os.path.join(download_path, f'{name}.pdf'), "wb") as f:

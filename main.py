@@ -9,17 +9,7 @@ from functions import Functions
 from time import sleep
 import logging
 import getpass
-import urllib3
 import shutil
-
-# --- [FIX PROXY BOSCH] PATCH SSL ---
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-_original_request = requests.Session.request
-def _patched_request(self, method, url, *args, **kwargs):
-    kwargs['verify'] = False
-    return _original_request(self, method, url, *args, **kwargs)
-requests.Session.request = _patched_request
-# -----------------------------------
 
 if getattr(sys, 'frozen', False):
     base_path = sys._MEIPASS
