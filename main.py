@@ -10,6 +10,7 @@ from time import sleep
 import logging
 import getpass
 import shutil
+from datetime import datetime
 
 if getattr(sys, 'frozen', False):
     base_path = sys._MEIPASS
@@ -21,12 +22,16 @@ load_dotenv(dotenv_path)
 
 user_pc = getpass.getuser()
 
-# Configuração de Logs
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
+# Configuração de Logs — console apenas na inicialização.
+# O FileHandler é adicionado em App._setup_file_logging() ao iniciar o processo.
+_log_formatter = logging.Formatter(
+    fmt='%(asctime)s - %(levelname)s - %(message)s',
     datefmt='%H:%M:%S'
 )
+_console_handler = logging.StreamHandler(sys.stdout)
+_console_handler.setFormatter(_log_formatter)
+logging.getLogger().setLevel(logging.INFO)
+logging.getLogger().addHandler(_console_handler)
 
 class App:
     def __init__(self, root):
@@ -87,6 +92,19 @@ class App:
         self.collaborators_error_list = []
 
         root.protocol("WM_DELETE_WINDOW", self.root.destroy)
+        self._file_log_handler = None
+
+    def _setup_file_logging(self):
+        """Cria um arquivo de log com timestamp para a execução atual."""
+        log_dir = os.path.join(self.DOWNLOAD_PATH, "logs")
+        os.makedirs(log_dir, exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        log_path = os.path.join(log_dir, f"efile_{timestamp}.log")
+        handler = logging.FileHandler(log_path, encoding="utf-8")
+        handler.setFormatter(_log_formatter)
+        logging.getLogger().addHandler(handler)
+        self._file_log_handler = handler
+        logging.info(f"Log desta execução salvo em: {log_path}")
 
     def verify_all_loaded_files(self):
         if all([self.collaborators_file_path, self.documents_file_path, self.benefits_file_path, self.contract_file_path]):
@@ -129,6 +147,7 @@ class App:
 
         self.loading_label.pack(pady=20)
         self.loading = True
+        self._setup_file_logging()
 
         try:
             # Delay openpyxl import to avoid blocking app startup on slow environments.
@@ -195,14 +214,10 @@ class App:
             os.makedirs(temp_docs_path, exist_ok=True)
             os.makedirs(temp_benefits_path, exist_ok=True)
 
-            print(BASE_API)
             benefits_url = f"{BASE_API}/zip-benefits/{new_cpf}"
             documents_url = f"{BASE_API}/zip-documents/{new_cpf}"
             contract_url = f"{BASE_API}/work-contract/{new_cpf}"
-            
-            print(benefits_url)
-            print(documents_url)
-            print(contract_url)
+            logging.debug(f"   URLs -> docs={documents_url} | contract={contract_url} | benefits={benefits_url}")
             collaborator_error = False
 
             try:
